@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  avatar      String?
+  role        String   @default("member")
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
+  procedures  Procedure[]  @relation("ProcedureOwner")
+  runs        ProcedureRun[]
+  comments    Comment[]
+  favorites   Favorite[]
+  approvals   Approval[]
+  auditLogs   AuditLog[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  logoUrl     String?
+  users       User[]
+  procedures  Procedure[]
+  theme       WorkspaceTheme?
+  tags        Tag[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WorkspaceTheme {
+  id               String    @id @default(cuid())
+  workspaceId      String    @unique
+  workspace        Workspace @relation(fields: [workspaceId], references: [id])
+  primaryColor     String    @default("#3B82F6")
+  accentColor      String    @default("#8B5CF6")
+  backgroundColor  String    @default("#F9FAFB")
+  canvasColor      String    @default("#FFFFFF")
+  cardColor        String    @default("#FFFFFF")
+  textColor        String    @default("#111827")
+  buttonStyle      String    @default("rounded")
+  sectionColor     String    @default("#EFF6FF")
+  warningColor     String    @default("#FEF3C7")
+  dangerColor      String    @default("#FEE2E2")
+  logoUrl          String?
+  exportLogoUrl    String?
+  companyName      String?
+  headerText       String?
+  footerText       String?
+  watermark        String?
+  fontFamily       String    @default("Inter")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  name        String
+  color       String   @default("#6B7280")
+  workspaceId String
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id])
+  procedures  ProcedureTag[]
+  createdAt   DateTime @default(now())
+
+  @@unique([name, workspaceId])
+}
+
+model Procedure {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  workspace        Workspace       @relation(fields: [workspaceId], references: [id])
+  ownerId          String
+  owner            User            @relation("ProcedureOwner", fields: [ownerId], references: [id])
+  title            String
+  description      String?
+  type             String          @default("procedure")
+  category         String?
+  department       String?
+  status           String          @default("draft")
+  currentVersionId String?
+  versions         ProcedureVersion[]
+  runs             ProcedureRun[]
+  tags             ProcedureTag[]
+  favorites        Favorite[]
+  auditLogs        AuditLog[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ProcedureVersion {
+  id          String    @id @default(cuid())
+  procedureId String
+  procedure   Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  version     Int       @default(1)
+  status      String    @default("draft")
+  notes       String?
+  publishedAt DateTime?
+  sections    ProcedureSection[]
+  runs        ProcedureRun[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([procedureId, version])
+}
+
+model ProcedureSection {
+  id          String           @id @default(cuid())
+  versionId   String
+  version     ProcedureVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  order       Int
+  style       String           @default("{}")
+  blocks      ProcedureBlock[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model ProcedureBlock {
+  id         String           @id @default(cuid())
+  sectionId  String
+  section    ProcedureSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  type       String
+  order      Int
+  content    String           @default("{}")
+  style      String           @default("{}")
+  validation String           @default("{}")
+  logic      String           @default("{}")
+  runValues  RunBlockValue[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
+
+model ProcedureRun {
+  id          String           @id @default(cuid())
+  procedureId String
+  procedure   Procedure        @relation(fields: [procedureId], references: [id])
+  versionId   String
+  version     ProcedureVersion @relation(fields: [versionId], references: [id])
+  runnerId    String
+  runner      User             @relation(fields: [runnerId], references: [id])
+  status      String           @default("in_progress")
+  mode        String           @default("step")
+  progress    Float            @default(0)
+  currentBlockId String?
+  startedAt   DateTime         @default(now())
+  completedAt DateTime?
+  blockValues RunBlockValue[]
+  attachments RunAttachment[]
+  comments    Comment[]
+  approvals   Approval[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model RunBlockValue {
+  id           String         @id @default(cuid())
+  runId        String
+  run          ProcedureRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  blockId      String
+  block        ProcedureBlock @relation(fields: [blockId], references: [id])
+  value        String?
+  completed    Boolean        @default(false)
+  completedAt  DateTime?
+  timerElapsed Int?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([runId, blockId])
+}
+
+model RunAttachment {
+  id        String       @id @default(cuid())
+  runId     String
+  run       ProcedureRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  blockId   String?
+  filename  String
+  url       String
+  size      Int?
+  mimeType  String?
+  createdAt DateTime     @default(now())
+}
+
+model Comment {
+  id        String       @id @default(cuid())
+  runId     String
+  run       ProcedureRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User         @relation(fields: [authorId], references: [id])
+  content   String
+  blockId   String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model Approval {
+  id         String       @id @default(cuid())
+  runId      String
+  run        ProcedureRun @relation(fields: [runId], references: [id])
+  approverId String
+  approver   User         @relation(fields: [approverId], references: [id])
+  status     String       @default("pending")
+  notes      String?
+  decidedAt  DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model AuditLog {
+  id          String     @id @default(cuid())
+  workspaceId String?
+  procedureId String?
+  procedure   Procedure? @relation(fields: [procedureId], references: [id])
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+  action      String
+  details     String?
+  createdAt   DateTime   @default(now())
+}
+
+model Favorite {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  procedureId String
+  procedure   Procedure @relation(fields: [procedureId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, procedureId])
+}
+
+model ProcedureTag {
+  procedureId String
+  procedure   Procedure @relation(fields: [procedureId], references: [id])
+  tagId       String
+  tag         Tag       @relation(fields: [tagId], references: [id])
+
+  @@id([procedureId, tagId])
+}

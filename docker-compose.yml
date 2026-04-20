@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:/app/data/prod.db
+      - NODE_ENV=production
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=change-this-secret-in-production
+    volumes:
+      - procedure_data:/app/data
+      - procedure_uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/workspaces/current"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  procedure_data:
+    driver: local
+  procedure_uploads:
+    driver: local
+
+# To use PostgreSQL instead of SQLite, uncomment and configure:
+# services:
+#   db:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_DB: procedure_builder
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: changeme
+#     volumes:
+#       - pg_data:/var/lib/postgresql/data
+#     restart: unless-stopped
+#
+#   app:
+#     environment:
+#       - DATABASE_URL=postgresql://postgres:changeme@db:5432/procedure_builder
+#     depends_on:
+#       - db
+#
+# volumes:
+#   pg_data:
